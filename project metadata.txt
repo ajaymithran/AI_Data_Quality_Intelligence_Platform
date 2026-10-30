@@ -1,0 +1,385 @@
+![AI Data Quality v1 — universal CSV data-quality scanner](assets/banner.svg)
+
+# AI Data Quality — v1
+
+A universal **CSV data-quality scanner** with a simple web interface and a CLI.
+
+Point it at any CSV. It profiles every column, infers types **from the values
+(never from the column names)**, scores five data-quality dimensions, and
+reports issues with a severity and row-level evidence. It is deliberately
+generic — there are no retail- or domain-specific assumptions — and the source
+file is **never modified**.
+
+- **Web UI:** http://localhost:3000/universal
+- **CLI:** `python -m universal <file.csv>`
+- **Reports:** JSON, CSV and HTML
+- **v1 is fully deterministic** — rule-based only, no machine learning.
+
+---
+
+## Table of contents
+
+- [What it does](#what-it-does)
+- [Data-quality dimensions](#data-quality-dimensions)
+- [Built-in detectors](#built-in-detectors)
+- [Project structure](#project-structure)
+- [Requirements](#requirements)
+- [Setup](#setup)
+- [Running the web interface](#running-the-web-interface)
+- [Using the web interface](#using-the-web-interface)
+- [HTTP API](#http-api)
+- [Command line](#command-line)
+- [Reports](#reports)
+- [Configuration](#configuration)
+- [Using it as a library](#using-it-as-a-library)
+- [Extending it](#extending-it)
+- [Tests](#tests)
+- [Data safety](#data-safety)
+- [Version notes & roadmap](#version-notes--roadmap)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## What it does
+
+For any CSV the scanner:
+
+1. Reads the file **as raw strings** so nothing is silently coerced or lost.
+- Renames duplicate column headers instead of crashing.
+- Profiles **every** column: inferred type, nulls, blanks, uniqueness, value families.
+- Runs a set of deterministic detectors over the columns.
+- Produces a report with column profiles, dimension scores, findings
+  (severity + evidence rows) and machine-readable output.
+
+No column-name heuristics, no schema you have to declare, no data written back.
+
+---
+
+## Data-quality dimensions
+
+Each scan scores five dimensions from `0` to `100`:
+
+| Dimension | Question it answers |
+|---|---|
+| **completeness** | How much of the data is actually present? (missing + blank cells) |
+| **uniqueness** | Are there duplicate rows or duplicate values in identifier columns? |
+| **validity** | Do values respect a dominant format (dates, numbers, emails, URLs, phones)? |
+| **consistency** | Does a column hold a single type, or a confusing mix? |
+| [ ] **plausibility** | Are values believable (no outliers, no impossible/future dates, no sentinels)? |
+
+Levels of evidence are reported per **column** and per **row**.
+
+> Scores are rounded to one decimal place; `100.0` means no issue was found in
+> that dimension under the configured thresholds — not a guarantee of
+> correctness.
+
+---
+
+## Built-in detectors
+
+| Rule ID | What it flags |
+| --- | --- |
+| `MISSING_VALUES` | Empty cells and whitespace-only strings |
+| `DUPLICATE_ROWS` | Fully duplicated records |
+| `DUPLICATE_KEY` | Repeated values in a likely identifier column |
+| `MIXED_TYPES` | A column holding several value families |
+| `INVALID_FORMAT` | Values that break a dominant format (dates, numbers, e-mail, phone, URL) |
+| `WHITESPACE_CASE` | Leading/trailing spaces and inconsistent casing |
+| `OUTLIERS` | Numeric outliers using the IQR rule |
+| `SUSPICIOUS_VALUES` | Placeholder/sentinel values (`N/A`, `-`, `9999`, …) and impossible dates |
+| `CONSTANT_COLUMN` | Columns with a single distinct value |
+
+Severities are `INFO`, `WARNING` and `CRITICAL`. A `MLAnomalyDetector`
+placeholder exists but never runs in v1; it reports
+`{"status": "not_implemented"}` so a future ML detector can be slotted in
+without changing the scanner.
+
+---
+
+## Project structure
+
+```
+universal-app/
+├── app.py                      # ASGI app — UI at /universal, API at /api/universal
+├── run.py                      # starts the UI on http://localhost:3000/universal
+├── init.py                     # creates .venv and installs dependencies
+├── requirements.txt
+├── pyproject.toml              # project metadata + pytest config
+├── conftest.py
+├── README.md                   # concise project overview
+├── project metadata.txt        # full documentation (this file)
+├── assets/
+│   └── banner.svg              # banner shown at the top of the README
+├── universal/                  # the scanner package (self-contained)
+│   ├── __init__.py             # public API (scan_csv, scan_bytes, scan_df, render, …)
+│   ├── __main__.py             # enables `python -m universal`
+│   ├── cli.py                  # command-line entry point
+│   ├── context.py              # ScanContext + DEFAULT_CONFIG thresholds
+│   ├── detectors.py            # detector registry + built-in detectors
+│   ├── inference.py            # value/type inference and column profiling
+│   ├── report.py               # JSON / CSV / HTML rendering
+│   ├── scanner.py              # scan_csv / scan_bytes / scan_df + scoring
+│   ├── schema.py               # Finding, ColumnProfile, ScanReport
+│   └── web.py                  # FastAPI router + the web UI
+├── data/
+│   ├── sample_universal_health.csv
+│   ├── sample_valid.csv
+│   └── sample_corrupted.csv
+└── tests/
+    ├── test_universal.py
+    ├── test_universal_web.py
+    └── test_universal_cli.py
+```
+
+---
+
+## Requirements
+
+- Python **3.10+** (developed on 3.13)
+- FastAPI, Uvicorn, pandas, python-multipart, pytest, httpx
+  (pinned as minimums in `requirements.txt`)
+
+Everything is installed into a local `.venv`, so nothing is added to your
+global Python.
+
+---
+
+## Setup
+
+From inside `universal-app/`:
+
+```powershell
+python init.py
+```
+
+This creates `.venv/`, upgrades pip and installs `requirements.txt`. When it
+finishes it prints the command to start the app.
+
+### Manual setup (alternative)
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt     # Windows
+# .venv/bin/python -m pip install -r requirements.txt       # macOS / Linux
+```
+
+---
+
+## Running the web interface
+
+```powershell
+.venv\Scripts\python run.py          # Windows
+.venv/bin/python run.py              # macOS / Linux
+```
+
+Then open **http://localhost:3000/universal**.
+
+`run.py` serves the app with Uvicorn on `127.0.0.1:3000`. You can also launch
+it directly:
+
+```powershell
+.venv\Scripts\python -m uvicorn app:app --host 127.0.0.1 --port 3000
+```
+
+The scanner scans in a worker thread, so the page stays responsive on large
+files. If port 3000 is busy, stop whatever is using it or edit `PORT` in
+`run.py`.
+
+---
+
+## Using the web interface
+
+1. Open http://localhost:3000/universal.
+2. Choose a CSV file (or drag it onto the drop zone).
+3. Press **Scan**.
+4. Read the results:
+   - **overview** — row/column counts, scan id, severity totals;
+   - **dimensions** — completeness, uniqueness, validity, consistency, plausibility;
+   - **columns** — inferred type, nulls/blanks, uniqueness, mixed types, placeholders;
+   - **findings** — grouped by severity with row-level evidence.
+5. Download the report as **JSON**, **CSV** or **HTML**.
+
+---
+
+## HTTP API
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/` | Web UI (same page as `/universal`) |
+| `GET` | `/universal` | Web UI |
+| `GET` | `/health` | Liveness probe → `{"status": "ok", "interface": "/universal"}` |
+| `POST` | `/api/universal/scan` | Upload a CSV (`multipart/form-data`, field name `file`) → scan report as JSON |
+| `GET` | `/api/universal/scan/{scan_id}/report.{json,csv,html}` | Download a generated report |
+
+Example:
+
+```powershell
+curl.exe -X POST http://localhost:3000/api/universal/scan `
+  -F "file=@data\sample_universal_health.csv"
+```
+
+---
+
+## Command line
+
+The package exposes a CLI via `python -m universal`:
+
+```powershell
+.venv\Scripts\python -m universal <file.csv> [options]
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `csv` | — | Path to the CSV file to scan (required) |
+| `--format {summary,json,csv,html}` | `summary` | What to print to stdout |
+| `--save DIR` | — | Write all three report files into `DIR` |
+| `--fail-on {critical,warning,never}` | `never` | Exit `1` if that severity (or worse) is present — useful in CI |
+| `--row-evidence-cap N` | `25` | Max row-level findings kept per (rule, column) |
+
+Examples:
+
+```powershell
+# Human-readable summary
+.venv\Scripts\python -m universal "data\sample_universal_health.csv"
+
+# Full JSON to stdout (pipe to a file if you like)
+.venv\Scripts\python -m universal "data\sample_universal_health.csv" --format json
+
+# Write JSON + CSV + HTML reports
+.venv\Scripts\python -m universal "data\sample_universal_health.csv" --save reports
+
+# Fail the build if anything CRITICAL shows up
+.venv\Scripts\python -m universal "data\sample_corrupted.csv" --fail-on critical
+```
+
+Exit codes: `0` success, `1` when `--fail-on` was tripped, `2` on bad input
+(e.g. unreadable/empty CSV).
+
+---
+
+## Reports
+
+`render(report, fmt)` (and `--save`) produce files named
+`<csv-stem>_quality_report.<fmt>`:
+
+- **JSON** — the full machine-readable report (overview, dimensions, per-column
+  profiles, every finding).
+- **CSV** — one row per finding, for spreadsheets and diffing.
+- **HTML** — a self-contained, offline-viewable report.
+
+The web UI streams the same three formats via the download endpoint.
+
+---
+
+## Configuration
+
+Thresholds live in `universal/context.py` as `DEFAULT_CONFIG`:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `type_dominance` | `0.90` | Share of values that must share a family before the column type is "dominant" |
+| `mixed_type_min_share` | `0.01` | Minority families at/above this share are flagged as inconsistent |
+| `mixed_type_min_count` | `2` | Minimum count before a minority family is flagged |
+| `outlier_iqr_k` | `3.0` | IQR fence multiplier for outlier detection (1.5–3.0 typical) |
+| `outlier_min_values` | `8` | Minimum numeric values before outlier tests run |
+| `future_date_days` | `1` | A date at least this many days ahead is suspicious |
+| `critical_missing_rate` | `0.30` | Missing-rate above which a column is `CRITICAL` |
+| `row_evidence_cap` | `25` | Per (rule, column) cap on row-level findings |
+
+Override per scan:
+
+```python
+from universal import scan_csv
+
+report = scan_csv("any.csv", config={"outlier_iqr_k": 2.5, "row_evidence_cap": 50})
+```
+
+---
+
+## Using it as a library
+
+```python
+from universal import scan_csv, scan_bytes, scan_df, render
+
+report = scan_csv("any_file.csv")          # or scan_bytes(data, filename="x.csv")
+print(report.dimensions)                   # dict of the five dimensions
+print(report.severity_counts)              # {'INFO': .., 'WARNING': .., 'CRITICAL': ..}
+for column in report.columns:
+    print(column.name, column.inferred_type, column.missing)
+
+payload, media_type, filename = render(report, "html")
+open(filename, "wb").write(payload)
+```
+
+`ScanReport`, `ColumnProfile` and `Finding` are plain dataclasses, so the
+report is easy to serialise, test or feed into another system.
+
+---
+
+## Extending it
+
+Detectors are registered in a small registry, so a new rule — including a
+future ML detector — plugs in without touching the scanner:
+
+```python
+from universal import Detector, register_detector, registered_detectors
+from universal.schema import make_finding
+
+class MyRule(Detector):
+    rule_id = "MY_RULE"
+    def run(self, ctx):
+        # ctx: ScanContext with df / profiles / families / stripped / config
+        return [make_finding(rule_id=self.rule_id, column=c, severity="WARNING",
+                             message="…", row=None) for c in ctx.columns]
+
+register_detector(MyRule())      # registering the same rule_id replaces it
+```
+
+The `MLAnomalyDetector` placeholder lives here too; it currently returns `[]`
+and the report records `ml.status = "not_implemented"`.
+
+---
+
+## Tests
+
+```powershell
+.venv\Scripts\python -m pytest
+```
+
+The suite covers inference, every detector, report rendering, the web API and
+the CLI, and asserts that the source file is **never modified**. It runs in a
+few seconds.
+
+---
+
+## Data safety
+
+- The source CSV is opened **read-only** and is never written to.
+- Reports are written only where you ask (browser download, `--save`, or
+  explicit `render(...)` output).
+- Nothing is sent anywhere — everything runs locally.
+
+---
+
+## Version notes & roadmap
+
+**v1 (this release)** — deterministic rules only. No ML claims are made; the
+report explicitly marks ML detection as `not_implemented`.
+
+Planned for later versions:
+
+- an ML-based anomaly detector behind the existing `Detector` interface;
+- additional format validators and configurable rule sets;
+- richer HTML dashboard and trend comparison between scans.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `Address already in use` on port 3000 | Stop the process using 3000, or change `PORT` in `run.py`. |
+| `ModuleNotFoundError: universal` | Run commands from the `universal-app/` folder (or re-run `python init.py`). |
+| Empty/invalid CSV error (HTTP 400/422) | The file has no readable rows or is not CSV; check the file and retry. |
+| `python` not found | Install Python 3.10+ and ensure it is on `PATH`, or call the interpreter by full path. |
+| Scan seems slow on a huge file | It is read and profiled row-wise; large files still finish in seconds — watch the server console for progress. |

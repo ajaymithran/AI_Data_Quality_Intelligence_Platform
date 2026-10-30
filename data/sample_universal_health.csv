@@ -1,0 +1,22 @@
+patient_id,visit_date,age,temperature_c,glucose_mgdl,ward,discharged,notes
+P-001,2026-01-05,34,36.8,92,ICU,yes,stable
+P-002,2026-01-06,58,37.9,141,ward-b,yes,watch glucose
+P-003,2026-01-06,71,38.4,N/A,ICU,no,fever persisting
+P-004,2026-13-45,45,36.2,88,icu,yes,night shift intake
+P-005,2026-01-07,29,36.5,97,ward-a,yes,   follow-up
+P-005,2026-01-07,29,36.5,97,ward-a,yes,   follow-up
+P-006,2026-01-08,62,39.1,210,ICU,no,insulin given
+P-007,2026-01-08,38,36.9,unknown,ward-a,yes,refused test
+P-008,2027-06-01,51,37.2,118,Ward-A,yes,future admission?
+P-009,2026-01-09,44,36.6,105,ward-b,yes,   
+P-010,2026-01-09,67,41.5,133,ICU,no,severe sepsis
+P-011,2026-01-10,thirty,37.0,121,ward-a,yes,age from intake form
+P-012,2026-01-10,55,36.7,99,ward-b,yes,comfort care
+P-013,2026-01-11,73,38.9,187,ICU,no,DKA protocol
+P-014,2026-01-11,48,-4.0,95,ward-a,yes,sensor probe fell off
+P-015,2026-01-12,39,36.4,,ward-c,yes,no labs drawn
+P-016,2026-01-12,sixty,37.5,152,ward-b,MAYBE,awaiting insurance
+P-017,2026-01-13,42,36.8,110,ICU,yes,routine
+P-018,2026-01-13,57,38.1,166,Ward-B,no,antibiotics
+P-019,2026-01-14,35,36.9,88,ward-a,yes,discharged AMA
+P-020,2026-01-14,69,37.7,142,,no,missing ward

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Data Quality Intelligence Platform</title>
+<meta name="description" content="Universal CSV data-quality scanner — deterministic checks are the source of truth. Source data is never modified.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b101c'/%3E%3Cpath d='M16 6l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10v-6l8-4z' fill='none' stroke='%2338bdf8' stroke-width='2'/%3E%3Ccircle cx='16' cy='15' r='3' fill='%23a78bfa'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="static/styles.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l7 3.5V12c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6.5L12 3z"/>
+          <circle cx="12" cy="11" r="2.4"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <b>AI Data Quality</b>
+        <small>Intelligence Platform</small>
+      </span>
+    </div>
+
+    <div class="workspace">
+      <small class="sidebar-label">Workspace</small>
+      <div class="workspace-card">
+        <span class="ws-dot" aria-hidden="true"></span>
+        <div>
+          <b id="wsCurrent">No dataset</b>
+          <small id="wsMeta">Upload a file to begin</small>
+        </div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <small class="sidebar-label">Analysis</small>
+      <a href="#/" data-route="" class="nav-item" data-page="overview"><span class="nav-ico" data-ico="home"></span><span class="nav-text">Overview</span></a>
+      <a href="#/upload" data-route="upload" class="nav-item"><span class="nav-ico" data-ico="upload"></span><span class="nav-text">Upload &amp; Profile</span></a>
+      <a href="#/findings" data-route="findings" class="nav-item"><span class="nav-ico" data-ico="alert"></span><span class="nav-text">Quality Findings</span><span class="nav-badge" id="navCrit" hidden></span></a>
+      <a href="#/anomalies" data-route="anomalies" class="nav-item"><span class="nav-ico" data-ico="pulse"></span><span class="nav-text">Anomaly Detection</span></a>
+      <small class="sidebar-label">Workflow</small>
+      <a href="#/compare" data-route="compare" class="nav-item"><span class="nav-ico" data-ico="compare"></span><span class="nav-text">Dataset Comparison</span></a>
+      <a href="#/remediation" data-route="remediation" class="nav-item"><span class="nav-ico" data-ico="wrench"></span><span class="nav-text">Remediation Review</span></a>
+      <a href="#/reports" data-route="reports" class="nav-item"><span class="nav-ico" data-ico="report"></span><span class="nav-text">Reports &amp; Audit</span></a>
+      <small class="sidebar-label">System</small>
+      <a href="#/settings" data-route="settings" class="nav-item nav-settings"><span class="nav-ico" data-ico="settings"></span><span class="nav-text">Settings</span></a>
+    </nav>
+
+    <button class="collapse-btn" id="collapseBtn" title="Collapse sidebar" aria-label="Collapse sidebar">
+      <span data-ico="chevleft"></span><span class="collapse-label">Collapse</span>
+    </button>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn mobile-only" id="navToggle" aria-label="Open navigation" title="Menu"><span data-ico="menu"></span></button>
+      <div class="topbar-title">
+        <h1 id="pageTitle">Overview</h1>
+        <small id="pageSub" class="muted">Data-quality command center</small>
+      </div>
+      <div class="topbar-right">
+        <label class="dataset-select">
+          <span data-ico="database" class="muted" aria-hidden="true"></span>
+          <select id="datasetSelect" aria-label="Select dataset">
+            <option value="">No dataset selected</option>
+          </select>
+        </label>
+        <span class="scan-status" id="scanStatus" hidden></span>
+        <button class="icon-btn" id="notifBtn" aria-label="Notifications" title="Session notifications">
+          <span data-ico="bell"></span><em class="notif-dot" id="notifDot" hidden></em>
+        </button>
+        <button class="profile-btn" id="profileBtn" title="Local session — no account required">
+          <span>LJ</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content" id="content" tabindex="-1"></main>
+
+    <footer class="appfoot">
+      <span>Universal CSV Data-Quality Scanner · deterministic rules are the source of truth · Gemini analysis is advisory only · source data is read-only and <b>never modified</b></span>
+    </footer>
+  </div>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle">Detail</h2>
+      <button class="icon-btn" id="drawerClose" aria-label="Close detail panel"><span data-ico="x"></span></button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="notif-pop" id="notifPop" hidden>
+  <div class="notif-pop-head">Session activity</div>
+  <div id="notifList" class="notif-list"><p class="muted small">No actions yet in this session.</p></div>
+</div>
+<div class="menu-pop" id="profilePop" hidden>
+  <b>Local session</b>
+  <p class="muted small">This platform runs entirely on your machine. No sign-in is required; uploads are processed locally.</p>
+</div>
+
+<script src="static/app.js"></script>
+</body>
+</html>
